@@ -4,7 +4,9 @@
 var WebSocketServer = require('ws').Server;
 var MongoClient = require('mongodb').MongoClient;
 var bcrypt = require('bcrypt');
-
+var fs = require('fs');
+var uuid = require('node-uuid');
+var EventEmitter = require('events').EventEmitter;
 
 //Permission Flags
 var WRITE_DELETE = 1;
@@ -21,111 +23,151 @@ var IS_MOD = 1073741824;
 var IS_ADMIN = 2147483648;
 
 
-//Config
+//JSON Files
 var accounts = require('./accounts');
-var wss = new WebSocketServer({ port: 8081 });
-var db = 'mongodb://localhost:27017/chat';
+var config = require('./config');
+
+var wss = null;
+var server = null;
+var http = null;
+
+//Connect To DB
+MongoClient.connect(config.database, function(err, chatlog) {
+
+	//Setup Websocket Server
+	var dummyRequest = function(req, res) {
+        res.writeHead(200);
+        res.end("WebSocketServer\n");
+    };
+
+	if (config.ssl.enable) {
+		http = require('https');
+		server = http.createServer({
+			key: fs.readFileSync(config.ssl.key),
+			cert: fs.readFileSync(config.ssl.cert)
+		}, dummyRequest).listen(config.websocket.port);
+	}
+	else {
+		http = require('http');
+		server = http.createServer(dummyRequest).listen(config.websocket.port);
+	}
+	wss = new WebSocketServer({server: server});
+    wss.msg = new EventEmitter();
 
 
-//Functions
-wss.broadcast = function broadcast(data) {
-  wss.clients.forEach(function each(client) {
-    client.send(data);
-  });
-};
+	//Server Functions
 
-wss.msg = function msg(now, ws, message) {
-  wss.clients.forEach(function each(client) {
-    if (client.user_flags & VIEW_IP) {
-      client.send("msgb:" + now + ":" + ws.user + ":" + ws._socket._handle.fd + ":" + ws.upgradeReq.connection.remoteAddress + ":" + message);
-    }
-    else {
-      client.send("msgb:" + now + ":" + ws.user + ":" + ws._socket._handle.fd + "::" + message);
-    }
-  });
-};
+	//description: broadcasts a generic Message; authOnly true will only send to connections that are logged in.
+	wss.bcast = function bcast(data, authOnly) {
+        var message = JSON.stringify(data);
+		if (authOnly) {
+			wss.clients.forEach(function each(client) {
+				if (client.user.name) {
+					client.send(message);
+				}
+			});
+		}
+		else {
+			wss.clients.forEach(function each(client) {
+				client.send(message);
+			});
+		}
+	};
 
-function html_safe_entities(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+	//description: broadcasts a user entered message
+	wss.bcastMsg = function bcastMsg(ws, msg, authOnly) {
+        msg.date = new Date();
+        var msgip = JSON.stringify(['message', msg]);
+        msg.ip = undefined;
+        msg = JSON.stringify(['message', msg]);
+		if (authOnly) {
+			wss.clients.forEach(function each(client) {
+				if (client.user.name) {
+					client.send(ws.user.flags.perm & VIEW_IP ? msgip : msg);
+				}
+			});
+		}
+		else {
+			wss.clients.forEach(function each(client) {
+				client.send(ws.user.flags.perm & VIEW_IP ? msgip : msg);
+			});
+		}
+    };
 
-//Event Listeners
-wss.on('connection', function connection(ws) {
+    //description: parses html entities that could be used for exploits
+    wss.html_safe_entities = function html_safe_entities(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    };
 
-  //Connection Setup
-  ws.user = null;
-  ws.session = null;
-  ws.flags_perm = 0;
-  ws.flags_user = 0;
-  ws.user_flags = 0;
-
-  wss.broadcast("c:" + wss._server._connections);
-  ws.send("users:" + wss.clients.map(function(item){return item.user}).filter(function(n){return n != undefined}).join(';'));
-
-  ws.on('close', function close() {
-    wss.broadcast("useroff:" + ws.user);
-    ws.user = null;
-    wss.broadcast("c:" + wss._server._connections);
-  });
-
-  ws.on('message', function incoming(message) {
-    var args = message.split(":");
-
-    switch (args[0]) {
-      case "msg":
-        if (ws.user) {
-          var msg = html_safe_entities(args.slice(1).join(":"));
-          
-          MongoClient.connect(db, function(err, dba) {
-            var now = new Date() / 1000 * 1000;
-            dba.collection('chatlog').insert({user: ws.user, time: now, message: msg, ip: ws.upgradeReq.connection.remoteAddress});
-            wss.msg(now, ws, msg);
-            //wss.broadcast("msgb:" + now + ":" + ws.user + ":" + msg);
-            dba.close();
-          });
-        }
-        break;
-
-      case "logout":
-        wss.broadcast("useroff:" + ws.user);
-        ws.user = null;
-        ws.send("unauth:Logout");
-        break;
-
-      case "login":
-        if (args[1] in accounts) {
-          bcrypt.compare(args[2], accounts[args[1]].password, function(err, res) {
-            if (res) {
-              ws.user = args[1];
-              ws.send("auth:" + ws.user);
-              wss.broadcast("useron:" + ws.user);
-              MongoClient.connect(db, function(err, dba) {
-                var cursor = dba.collection('chatlog').find();
-                if (ws.flags_perm & VIEW_IP) {
-                  cursor.each(function(err, doc) {
-                    if (doc != null) {
-                      ws.send("msgb:" + doc.time + ":" + doc.user + "::" + doc.ip + ":" + doc.message);
+    //Client to Server Message Events
+    wss.msg.on('login', function(ws, user) {
+        var name = user.name.toLowerCase();
+        if (name in accounts && user.password) {
+            bcrypt.compare(user.password, accounts[name].password, function(err, valid) {
+                if (valid) {
+                    ws.user.name = name;
+                    ws.user.display = user.name;
+                    ws.send(JSON.stringify(['auth', {name: ws.user.name}]));
+                    if (ws.user.flags.perm & VIEW_IP) {
+                        var cursor = chatlog.collection('example').find({}, {});
                     }
-                  });
+                    else {
+                        var cursor = chatlog.collection('example').find({}, {ip: 0});
+                    }
+                    cursor.each(function(err, document) {
+                        ws.send(JSON.stringify(['message', document]));
+                    });
                 }
                 else {
-                  cursor.each(function(err, doc) {
-                    if (doc != null) {
-                      ws.send("msgb:" + doc.time + ":" + doc.user + ":::" + doc.message);
-                    }
-                  });
+                    ws.send('["deny",{"code":1}]'); //deny reason is name or password wrong
                 }
-              });
-            }
-            else {
-              ws.send("unauth:Bad User or Password");
-            }
-          });
+            });
         }
         else {
-          ws.send("unauth:User doesn't exist");
+            ws.send('["deny",{"code":2}]'); //deny reason is name not existing
         }
-        break;
-    }
-  });
+    });
+    
+    wss.msg.on('logout', function(ws, data) {
+        ws.send(JSON.stringify(['unauth', {name: ws.user.name}]));
+        ws.user.name = undefined;
+        ws.user.display = undefined;
+    });
+    
+    wss.msg.on('message', function(ws, message) {
+        var msg = {name: ws.user.name, display: ws.user.display, date: new Date(), ip: ws.upgradeReq.connection.remoteAddress, text: wss.html_safe_entities(message.text)};
+        chatlog.collection('example').insert(msg);
+        wss.bcastMsg(ws, msg, true);
+        
+    });
+
+    
+    //Event Listeners
+    wss.on('connection', function connection(ws) {
+
+        ws.user = {name: undefined, display: undefined, flags: {perm: 0, user: 0}, session: uuid.v4()};
+   
+        //Refactor this for users who request the list.
+        //ws.send("users:" + wss.clients.map(function(item){return item.user.name}).filter(function(n){return n != undefined}).join(';'));
+        ws.send('["protocol",{"version":1}]');
+        wss.bcast(['online', {count: wss._server._connections}]);
+
+        ws.on('close', function close(code, message) {
+            wss.bcast(['online', {count: wss._server._connections}]);
+        });
+        ws.on('message', function message(data, flags) {
+            try {
+              var event = JSON.parse(data);
+              wss.msg.emit(event[0], ws, event[1]);
+            }
+            catch(e) {
+              try {
+                ws.close();
+              }
+              catch(e) {
+                ws.terminate();
+              }
+            }
+        });
+    });
 });

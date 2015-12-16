@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat</title>
+</head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+<script src="./client.js"></script>
+<body>
+
+    <table border="1" id="chat">
+        <thead>
+            <td>Time</td>
+            <td>User</td>
+            <td>Message</td>
+        </thead>
+        <tbody id="messages">
+        </tbody>
+    </table>
+
+    <div id="message-box" />
+        <input type="text" id="message" />
+        <input type="submit" id="send" value="Send" />
+    </div>
+
+    <div id="login-box">
+        <input type="text" id="name" />
+        <input type="password" id="password" />
+        <input type="submit" id="login" value="Login" />
+    </div>
+
+    <div>
+        <input type="submit" id="connect" value="Connect" />
+        <input type="submit" id="disconnect" value="Disconnect" />
+        <input type="submit" id="logout" value="Logout" />
+    </div>
+
+    <div id="status">Status: <span id="online" style="color:red;">Disconnected</span> [<span id="online-users"></span>]</div>
+    <div id="error" style="color: red;"></div>
+</body>    
+</html>

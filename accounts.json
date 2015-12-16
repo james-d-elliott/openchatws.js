@@ -1,4 +1,5 @@
 {
 	"james": {"password": "$2a$10$7TRgFv7xUt3kfmlrfOZnx.6bPy.kcGo3eh359d/h/Lw..tSUbVkP2"},
-	"brendon": {"password": "$2a$10$7TRgFv7xUt3kfmlrfOZnx.Ze5iIdcD4mJPFrUHaz0D.CL8Iys0E.a"}
+	"brendon": {"password": "$2a$10$7TRgFv7xUt3kfmlrfOZnx.Ze5iIdcD4mJPFrUHaz0D.CL8Iys0E.a"},
+	"lumeh": {"password": "$2a$10$ixzU/9F/1uqV6KfCMrbHlOobcArNqMy8ZVXJ68rty1Ic/MeyOcqsu"}
 }
