@@ -29,7 +29,7 @@
 	<input type="submit" id="disconnect" value="Disconnect" />
 	<input type="submit" id="logout" value="Logout" />
 </div>
-<div id="status">Status: <span style="color:red;">Disconnected</span></div>
+<div id="status">Status: <span id="online" style="color:red;">Disconnected</span> [<span id="online-users"></span>]</div>
 <div id="error" style="color: red;"></div>
 <script>
 	var ws = null;
@@ -86,16 +86,18 @@
 		ws = new WebSocket('ws://public.project-umbrella.com:8081');
 
 		ws.onopen = function(e) {
-			$("#status").html("Status: <span style=\"color:orange;\">Connected (not logged in)</span>");
+			$("#online").html("Connected (not logged in)");
+			$("#online").css({"color": "orange"});
 			$("#connect").hide();
 			$("#disconnect").show();
 			$("#login-box").show();
 		}
+
 		ws.onmessage = function(e) {
 			var args = e.data.split(':');
 			switch (args[0]) {
 				case "msgb": {
-					$("#messages").append("<tr><td class=\"time\">" + args[1] + "</td><td class=\"user\">" + args[2] + "</td><td class=\"message\">" + args.slice(3).join(":") + "</td></tr>");
+					$("#messages").append("<tr><td class=\"time\">" + args[1] + "</td><td class=\"user\">" + args[2] + "</td><td class=\"message\">" + args.slice(5).join(":") + "</td></tr>");
 					if (args[2] == user) {
 						$("#message").removeAttr('disabled');
 						$("#send").removeAttr('disabled');
@@ -106,7 +108,8 @@
                                 }
 				case "auth": {
 					user = args[1];
-					$("#status").html("Status: <span style=\"color:green;\">Connected (logged in as '" + user + "')</span>");
+					$("#online").html("Connected (logged in as '" + user + "')");
+					$("#online").css({"color": "green"});
 					$("#message").removeAttr('disabled');
 					$("#send").removeAttr('disabled');
 					$("#message-box").show();
@@ -126,10 +129,16 @@
 					$("#error").html(args[1]);
 					break;
 				}
+				case "c": {
+					$("#online-users").html(args[1]);
+					break;
+				}
 			}
 		}
+
 		ws.onclose = function(e) {
-			$("#status").html("Status: <span style=\"color:red;\">Disconnected</span>");
+			$("#online").html("Disconnected");
+			$("#online").css({"color": "red"});
 			$("#message").attr('disabled', 'disabled');
 			$("#send").attr('disabled', 'disabled');
 			$("#messages").html("");
@@ -137,6 +146,7 @@
 			$("#connect").show();
 			$("#message-box").hide();
 			$("#login-box").hide();
+			$("#logout").hide();
 			ws = null;
 		}
 	}
