@@ -1,20 +1,20 @@
 {
 	"james": {
-		"password": "$2a$10$7TRgFv7xUt3kfmlrfOZnx.6bPy.kcGo3eh359d/h/Lw..tSUbVkP2",
+		"password": "$2a$10$pgOmJNdNlE9RHyCFttPR.eLQXKKgIP7M9Li8IIAriRDr5kJzuwizO",
 		"flags": {
 			"perm": 1,
 			"user": 0
 		}
 	},
 	"brendon": {
-		"password": "$2a$10$7TRgFv7xUt3kfmlrfOZnx.Ze5iIdcD4mJPFrUHaz0D.CL8Iys0E.a",
+		"password": "$2a$10$pgOmJNdNlE9RHyCFttPR.eLQXKKgIP7M9Li8IIAriRDr5kJzuwizO",
 		"flags": {
 			"perm": 0,
 			"user": 0
 		}
 	},
 	"lumeh": {
-		"password": "$2a$10$ixzU/9F/1uqV6KfCMrbHlOobcArNqMy8ZVXJ68rty1Ic/MeyOcqsu",
+		"password": "$2a$10$pgOmJNdNlE9RHyCFttPR.eLQXKKgIP7M9Li8IIAriRDr5kJzuwizO",
 		"flags": {
 			"perm": 0,
 			"user": 0

@@ -8,5 +8,5 @@
     "key": "/path/ssl.key",
     "crt": "/path/ssl.crt"
   },
-  "database": "mongodb://localhost:27017/chat"
+  "database": "mongodb://localhost:27017/openchatws"
 }

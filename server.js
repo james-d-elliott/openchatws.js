@@ -43,14 +43,14 @@ var server = null;
 var http = null;
 
 
-//Connect To DB
+//Connect To Chat DB
 MongoClient.connect(config.database, function(err, chatlog) {
 
 	//Setup Websocket Server
 	var dummyRequest = function(req, res) {
-        res.writeHead(200);
-        res.end("WebSocketServer\n");
-    };
+		res.writeHead(200);
+		res.end("WebSocketServer\n");
+	};
 
 	if (config.ssl.enable) {
 		http = require('https');
@@ -191,20 +191,19 @@ MongoClient.connect(config.database, function(err, chatlog) {
         ws.user.name = undefined;
         ws.user.display = undefined;
     });
-    
+
     wss.msg.on('message', function(ws, message) {
         var msg = {name: ws.user.name, display: ws.user.display, date: new Date(), ip: ws.upgradeReq.connection.remoteAddress, text: wss.html_safe_entities(message.text)};
         chatlog.collection('example').insert(msg);
         wss.bcastMsg(ws, msg, true);
-        
     });
 
-    
+
     //Event Listeners
     wss.on('connection', function connection(ws) {
 
         ws.user = {name: undefined, display: undefined, flags: {perm: 0, user: 0}, session: uuid.v4()};
-   
+
         //Refactor this for users who request the list.
         //ws.send("users:" + wss.clients.map(function(item){return item.user.name}).filter(function(n){return n != undefined}).join(';'));
         ws.send('["version",{"server":"' + process.env.npm_package_version + '","protocol":' + process.env.npm_package_protocol + '}]');

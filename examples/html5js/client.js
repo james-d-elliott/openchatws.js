@@ -32,11 +32,11 @@ $(document).ready(function() {
         ws.onclose = function() {};
         ws.close();
     });
-    
+
     $("#connect").click(function() {
         connect();
     });
-    
+
     $("#disconnect").click(function() {
         ws.close();
     });
@@ -67,11 +67,11 @@ $(document).ready(function() {
         $("#logout").hide();
         $("#login-box").show();
     });
-    
+
     $("#chat").on('dologin', function(event) {
         ws.send('["login",{"name":"' + $("#name").val() + '","password":"' + $("#password").val() + '"}]');
     });
-    
+
     $("#chat").on('dosend', function(event) {
         var text = $("#message").val();
         if (!$("#message").is(":disabled") && text !== "") {
@@ -83,7 +83,7 @@ $(document).ready(function() {
             $("#message").focus();
         }
     });
-    
+
     $("#chat").on('deny', function(event, deny) {
         if (deny.code === 1) {
             $("#error").html("<b>Error:</b> Invalid Name or Password.");
@@ -96,7 +96,7 @@ $(document).ready(function() {
     $("#chat").on('online', function(event, online) {
         $("#online").html(online.count);
     });
-    
+
     $("#chat").on('message', function(event, message) {
         if (!message || !message.text) {
             return;
@@ -118,8 +118,8 @@ $(document).ready(function() {
     }
 
     function connect() {
-        ws = new WebSocket('ws://public.project-umbrella.com:8081');
-        
+        ws = new WebSocket('ws://development.project-umbrella.com:8081');
+
         ws.onopen = function(open) {
             $("#status").html("Connected (not logged in)");
             $("#status").css({"color": "orange"});
@@ -129,7 +129,7 @@ $(document).ready(function() {
             $("#name").show();
             $("#name").focus();
         };
-        
+
         ws.onclose = function(close) {
             ws = null;
             $("#online").html("N/A");
@@ -142,11 +142,11 @@ $(document).ready(function() {
             $("#logout").hide();
             $("#connect").show();
         };
-        
+
         ws.onerror = function(error) {
             $("#error").html("<b>Error:</b> Connection Failed (" + error + ").");
         };
-        
+
         ws.onmessage = function(message) {
             try {
                 var msg = JSON.parse(message.data);

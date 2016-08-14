@@ -1,0 +1,58 @@
+* {
+    -moz-box-sizing: border-box;
+    -webkit-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+    margin:0;
+    padding:0;
+    color: #DDD;
+}
+
+#chat {
+    height: inherit;
+}
+
+#log {
+    height: 80%;
+    background-color: #222;
+    overflow: auto;
+}
+
+#error {
+    color: red;
+}
+
+#composer {
+    height: 20%;
+    width: 80%;
+    background-color: #222;
+    float: left;
+}
+
+#controls {
+    height: 20%;
+    width: 20%;
+    background-color: #222;
+    float: right;
+}
+
+.control-text {
+    width: 80%;
+}
+
+#composer, #log {
+    padding: 20px;
+}
+
+#composer textarea {
+    width: 100%;
+    height: 100%;
+    resize: none;
+}
+
+.messagediv:nth-child(odd) {
+    background-color: #333;
+}
