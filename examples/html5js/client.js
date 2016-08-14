@@ -1,33 +1,29 @@
 var ws = null;
 var user = {name: undefined, display: undefined, session: undefined};
+
 $(document).ready(function() {
-    $("#send").attr('disabled', 'disabled');
     $("#message").attr('disabled', 'disabled');
     $("#disconnect").hide();
     $("#logout").hide();
-    $("#message-box").hide();
     $("#login-box").hide();
 
-    $("#send").click(function() {
-        var text = $("#message").val();
-        if (!$("#message").is(":disabled") && text !== "") {
-            $("#message").attr('disabled', 'disabled');
-            $("#send").attr('disabled', 'disabled');
-            ws.send(JSON.stringify(["message", {text: text}]));
-        }
-        else {
-            $("#error").html("Error: No Message");
-            $("#message").focus();
+    $("#message").keypress(function(event) {
+        if (event.which === 13 && !event.shiftKey) {
+            event.preventDefault();
+            if ($("#message").is(":focus")) {
+                $("#chat").trigger("dosend");
+            }
         }
     });
 
-    $(document).keypress(function(e) {
-        if (e.which == 13) {
-            if ($("#message").is(":focus")) {
-                $("#send").trigger("click");
+    $(".login").keypress(function(event) {
+        if (event.which === 13) {
+            if ($("#name").val() !== "" && $("#password").val() !== "") {
+                $("#error").html("");
+                $("#chat").trigger("dologin");
             }
-            else if($("#user").is(":focus") || $("#password").is(":focus")) {
-                $("#login").trigger("click");
+            else {
+                $("#error").html("<b>Error:</b> Please enter a Username and Password.");
             }
         }
     });
@@ -44,10 +40,6 @@ $(document).ready(function() {
     $("#disconnect").click(function() {
         ws.close();
     });
-    
-    $("#login").click(function() {
-        ws.send('["login",{"name":"' + $("#name").val() + '","password":"' + $("#password").val() + '"}]');
-    });
 
     $("#logout").click(function() {
         ws.send('["logout",{}]');
@@ -56,13 +48,11 @@ $(document).ready(function() {
     $("#chat").on('auth', function(event, auth) {
         user.name = auth.name.toLowerCase();
         user.display = auth.name;
+        $("#status").html("Connected (as '" + user.display + "')");
+        $("#status").css({"color": "green"});
         $("#message").removeAttr('disabled');
-        $("#send").removeAttr('disabled');
-        $("#message-box").show();
-        $("#logout").show();
         $("#login-box").hide();
-        $("#online").html("Connected (logged in as '" + user.display + "')");
-        $("#online").css({"color": "green"});
+        $("#logout").show();
         $("#message").focus();
 
     });
@@ -70,39 +60,51 @@ $(document).ready(function() {
     $("#chat").on('unauth', function(event, unauth) {
         user.name = undefined;
         user.display = undefined;
+        $("#log").html("");
+        $("#status").html("Connected (not logged in)");
+        $("#status").css({"color": "orange"});
         $("#message").attr('disabled', 'disabled');
-        $("#send").attr('disabled', 'disabled');
-        $("#login-box").show();
-        $("#message-box").hide();
         $("#logout").hide();
-        $("#messages").html("");
+        $("#login-box").show();
+    });
+    
+    $("#chat").on('dologin', function(event) {
+        ws.send('["login",{"name":"' + $("#name").val() + '","password":"' + $("#password").val() + '"}]');
+    });
+    
+    $("#chat").on('dosend', function(event) {
+        var text = $("#message").val();
+        if (!$("#message").is(":disabled") && text !== "") {
+            $("#message").val("");
+            ws.send(JSON.stringify(["message", {text: text}]));
+        }
+        else {
+            $("#error").html("<b>Error:</b> No Message.");
+            $("#message").focus();
+        }
     });
     
     $("#chat").on('deny', function(event, deny) {
         if (deny.code === 1) {
-            $("#error").html("Error: Invalid Name or Password");
+            $("#error").html("<b>Error:</b> Invalid Name or Password.");
         }
         else if(deny.code === 2) {
-            $("#error").html("Error: Invalid Name (does not exist)");
+            $("#error").html("<b>Error:</b> Invalid Name (does not exist).");
         }
     });
 
     $("#chat").on('online', function(event, online) {
-        $("#online-users").html(online.count);
+        $("#online").html(online.count);
     });
     
     $("#chat").on('message', function(event, message) {
-        if (!message) {
+        if (!message || !message.text) {
             return;
         }
         var date = new Date(message.date);
-        $("#messages").append("<tr><td class=\"message date\">" + formatTime(date) + "</td><td class=\"message name\">" + (message.display ? message.display : message.name)  + "</td><td class=\"message text\">" + message.text + "</td></tr>");
-        if (message.name = user.name) {
-            $("#message").removeAttr('disabled');
-            $("#send").removeAttr('disabled');
-            $("#message").val("");
-            $("#message").focus();
-        }
+        $("#log").append('<div class="message messagediv" id="' + message._id + '"><span class="message time">' + formatTime(date) + '</span> - <span class="message name">' + (message.display ? message.display : message.name)  + '</span>: <span class="message text">' + message.text.replace(/(?:\r\n|\r|\n)/g, '<br />') + '</span></div>');
+        $("#log")[0].scrollTop = $("#log")[0].scrollHeight;
+        ws.send(JSON.stringify(['hide', {ids: [message._id]}]));
     });
 
     function formatTime(date) {
@@ -119,34 +121,40 @@ $(document).ready(function() {
         ws = new WebSocket('ws://public.project-umbrella.com:8081');
         
         ws.onopen = function(open) {
-            $("#online").html("Connected (not logged in)");
-            $("#online").css({"color": "orange"});
+            $("#status").html("Connected (not logged in)");
+            $("#status").css({"color": "orange"});
             $("#connect").hide();
             $("#disconnect").show();
             $("#login-box").show();
+            $("#name").show();
+            $("#name").focus();
         };
         
         ws.onclose = function(close) {
             ws = null;
-            $("#online").html("Disconnected");
-            $("#online").css({"color": "red"});
+            $("#online").html("N/A");
+            $("#status").html("Disconnected");
+            $("#status").css({"color": "red"});
             $("#message").attr('disabled', 'disabled');
-            $("#send").attr('disabled', 'disabled');
-            $("#messages").html("");
-            $("#disconnect").hide();
-            $("#connect").show();
-            $("#message-box").hide();
+            $("#log").html("");
             $("#login-box").hide();
+            $("#disconnect").hide();
             $("#logout").hide();
+            $("#connect").show();
         };
         
         ws.onerror = function(error) {
-            alert("error", error);
+            $("#error").html("<b>Error:</b> Connection Failed (" + error + ").");
         };
         
         ws.onmessage = function(message) {
-            var msg = JSON.parse(message.data);
-            $("#chat").trigger(msg[0], [msg[1]]);
+            try {
+                var msg = JSON.parse(message.data);
+                $("#chat").trigger(msg[0], [msg[1]]);
+            }
+            catch(e) {
+                alert(e);
+            }
         };
     }
     connect();

@@ -1,22 +1,31 @@
 "use strict";
 
+process.title = process.env.npm_package_name;
+
 //Libs
 var WebSocketServer = require('ws').Server;
 var MongoClient = require('mongodb').MongoClient;
+var ObjectId = require('mongodb').ObjectID;
 var bcrypt = require('bcrypt');
 var fs = require('fs');
 var uuid = require('node-uuid');
 var EventEmitter = require('events').EventEmitter;
 
 //Permission Flags
-var WRITE_DELETE = 1;
-var VIEW_DELETE = 2;
-var WRITE_BAN = 4;
-var VIEW_BAN = 8;
-var WRITE_UNBAN = 16;
-var VIEW_UNBAN = 32;
-var WRITE_PERM = 64;
-var VIEW_PERM = 128;
+var WRITE_HIDE = 1; //Can hide Messages
+var UPDATE_HIDE = 2; //Can unhide Messages
+var VIEW_HIDE = 4; //Can See hidden Messages
+var VIEW_HIDEINFO = 8; //Can See hidden Message Details
+var WRITE_BAN = 16;  //Can Ban Users
+var UPDATE_BAN = 32; //Can Modify Bans
+var VIEW_BAN = 64; //Can View Banned Users
+var VIEW_BANNED = 128; //Can View Bannned User Messages (i.e. messages that are sent by users who are currently banned will now show)
+var WRITE_UNBAN = 256; //Can Unban Users
+var VIEW_UNBAN = 512; //Can View Unban Info
+var WRITE_PERM = 1024; //Can Edit Permissions Flags
+var VIEW_PERM = 2048; //Can View Permissions Flags
+var WRITE_USER = 4096; //Can Edit Users Flags
+var VIEW_USER = 8192; //Can View Users Flags
 
 var VIEW_IP = 536870912;
 var IS_MOD = 1073741824;
@@ -27,9 +36,12 @@ var IS_ADMIN = 2147483648;
 var accounts = require('./accounts');
 var config = require('./config');
 
+
+//Globals
 var wss = null;
 var server = null;
 var http = null;
+
 
 //Connect To DB
 MongoClient.connect(config.database, function(err, chatlog) {
@@ -63,13 +75,23 @@ MongoClient.connect(config.database, function(err, chatlog) {
 		if (authOnly) {
 			wss.clients.forEach(function each(client) {
 				if (client.user.name) {
-					client.send(message);
+                    try {
+					   client.send(message);
+                    }
+                    catch(e) {
+                        console.log(e);
+                    }
 				}
 			});
 		}
 		else {
 			wss.clients.forEach(function each(client) {
-				client.send(message);
+                try {
+                   client.send(message);
+                }
+                catch(e) {
+                    console.log(e);
+                }
 			});
 		}
 	};
@@ -107,15 +129,24 @@ MongoClient.connect(config.database, function(err, chatlog) {
                 if (valid) {
                     ws.user.name = name;
                     ws.user.display = user.name;
+                    ws.user.flags.perm = accounts[name].flags.perm;
+                    ws.user.flags.user = accounts[name].flags.user;
                     ws.send(JSON.stringify(['auth', {name: ws.user.name}]));
+                    var filter = {};
+                    if (!ws.user.flags.perm & VIEW_HIDE) {
+                        filter.hidden = false;
+                    }
+                    if (!ws.user.flags.perm & VIEW_BANNED) {
+                        filter.banned = false;
+                    }
                     if (ws.user.flags.perm & VIEW_IP) {
-                        var cursor = chatlog.collection('example').find({}, {});
+                        var cursor = chatlog.collection('example').find(filter, {}).stream({});
                     }
                     else {
-                        var cursor = chatlog.collection('example').find({}, {ip: 0});
+                        var cursor = chatlog.collection('example').find(filter, {ip: 0}).stream({});
                     }
-                    cursor.each(function(err, document) {
-                        ws.send(JSON.stringify(['message', document]));
+                    cursor.on('data', function(message) {
+                        ws.send(JSON.stringify(['message', message]));
                     });
                 }
                 else {
@@ -127,7 +158,34 @@ MongoClient.connect(config.database, function(err, chatlog) {
             ws.send('["deny",{"code":2}]'); //deny reason is name not existing
         }
     });
-    
+
+    wss.msg.on('hide', function(ws, data) {
+        if (ws.user.flags.perm & WRITE_HIDE) {
+            chatlog.collection('example').update({_id: {$in: data.ids}}, {$set: {hidden: true}, $push: {history: {action: 'hide', date: new Date(), name: ws.user.name, reason: data.reason}}}, {multi: true}, function(err, object) {
+                console.log(err);
+                console.log(object);
+            });
+        }
+    });
+
+    wss.msg.on('unhide', function(ws, data) {
+        if (ws.user.flags.perm & UPDATE_HIDE) {
+            var ids = [];
+            for (var i = 0, len = data.ids.length; i < len; i++) {
+                id = data.ids[i]
+                chatlog.collection('example').update({_id: ObjectId(id)}, {$set: {hidden: false}, $push: {action: 'unhide', date: new Date(), name: ws.user.name, reason: data.reason}}, function(err, object) {
+                    if (!err) {
+                        ids.push(id);
+                    }
+                });
+            }
+            if (ids.length > 0) {
+                wss.bcast(['unhide', {ids: ids, name: ws.user.name}]);
+                //need to bcast unhidden messages too
+            }
+        }
+    });
+
     wss.msg.on('logout', function(ws, data) {
         ws.send(JSON.stringify(['unauth', {name: ws.user.name}]));
         ws.user.name = undefined;
@@ -149,11 +207,11 @@ MongoClient.connect(config.database, function(err, chatlog) {
    
         //Refactor this for users who request the list.
         //ws.send("users:" + wss.clients.map(function(item){return item.user.name}).filter(function(n){return n != undefined}).join(';'));
-        ws.send('["protocol",{"version":1}]');
-        wss.bcast(['online', {count: wss._server._connections}]);
+        ws.send('["version",{"server":"' + process.env.npm_package_version + '","protocol":' + process.env.npm_package_protocol + '}]');
+        wss.bcast(['online', {count: wss._server._connections, users: wss.clients.map(function(item){return item.user.name}).filter(function(n){return n != undefined})}]);
 
         ws.on('close', function close(code, message) {
-            wss.bcast(['online', {count: wss._server._connections}]);
+            wss.bcast(['online', {count: wss._server._connections, users: wss.clients.map(function(item){return item.user.name}).filter(function(n){return n != undefined})}]);
         });
         ws.on('message', function message(data, flags) {
             try {
@@ -162,6 +220,7 @@ MongoClient.connect(config.database, function(err, chatlog) {
             }
             catch(e) {
               try {
+                console.log(e);
                 ws.close();
               }
               catch(e) {
