@@ -1,17 +1,3 @@
-export interface IUser {
-	id: number | undefined,
-	name: string | undefined,
-	display: string | undefined,
-	session: string,
-	auth: boolean,
-	flags: IUserFlags
-}
-
-export interface IUserFlags {
-	perm: number,
-	user: number
-}
-
 export interface IAuth {
     name: string | undefined
 }
@@ -31,7 +17,8 @@ export interface IUnhide {
 
 export interface ILogin {
     name: string,
-    password: string
+    password: string,
+    test: string
 }
 
 export interface ILogout {

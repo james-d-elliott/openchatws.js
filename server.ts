@@ -45,12 +45,51 @@ class WebSocketServer extends ws.Server {
 }
 
 class WebSocketClient extends ws {
-	user: IUser;
+	user: User;
 	constructor(address: string, protocols?: string | string[] | undefined, options?: ws.IClientOptions | undefined) {
 		super(address, protocols, options);
+		this.user = new User();
 	}
 }
 
+class User {
+	id: number | undefined;
+	name: string | undefined;
+	display: string | undefined;
+	session: string | undefined;
+	auth: boolean;
+	permissions: Permissions;
+	flags: number;
+	constructor() {
+		this.id = undefined;
+		this.name = undefined;
+		this.display = undefined;
+		this.session = undefined;
+		this.auth = false;
+		this.permissions = new Permissions();
+		this.flags = 0;
+	}
+}
+
+class Permissions {
+	global: number;
+	channel: number;
+	constructor() {
+		this.global = 0;
+		this.channel = 0;
+	}
+	check(bit: number): boolean {
+		if (this.channel & bit || this.global & bit) {
+			return true; //Check both channel and global permission flags
+		}
+		else if (this.channel & CONST.IS_OWNER || this.global & CONST.IS_OWNER) {
+			return true; //Owners have all permissions
+		}
+		else {
+			return false;
+		}
+	}
+}
 
 //Globals
 var wss: WebSocketServer;
@@ -318,7 +357,7 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 	//category: moderation
 	//description: handles attempts to hide messages
 	wss.clientEvent.on('hide', function(ws: WebSocketClient, hide: any): void {
-		if (ws.user.flags.perm & CONST.WRITE_HIDE) {
+		if (ws.user.permissions.channel & CONST.WRITE_HIDE) {
 			chatlog.collection(channel).update({_id: {$in: hide.ids}}, {$set: {hidden: true}, $push: {history: {action: 'hide', date: new Date(), name: ws.user.name, reason: hide.reason}}}, {multi: true}, function(err: MongoError, object: any) {
 				//TODO: send notification to clients
 				console.log(err);
@@ -334,7 +373,7 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 	//category: moderation
 	//description: handles attempts to unhide messages
 	wss.clientEvent.on('unhide', function(ws: WebSocketClient, data: any) {
-		if (ws.user.flags.perm & CONST.UPDATE_HIDE) {
+		if (ws.user.permissions.check(CONST.UPDATE_HIDE)) {
 			var unhide: IUnhide = {ids: [], name: ""};
 			unhide.name = ws.user.name;
 			for (var i = 0, len = data.ids.length; i < len; i++) {
@@ -362,6 +401,8 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 	wss.clientEvent.on('login', function(ws: WebSocketClient, login: ILogin) {
 		var name = login.name.toLowerCase();
 		var auth: IAuth = {name: undefined};
+		var test = login.test;
+		
 		console.log('in login');
 		if (!ws.user.auth && name in accounts && user.password) {
 			bcrypt.compare(user.password, accounts[name].password, function(err: Error, valid: boolean) {
@@ -371,23 +412,20 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 					console.log('valid');
 					ws.user.name = name;
 					ws.user.display = user.name;
-					ws.user.flags.perm = accounts[name].flags.perm;
-					ws.user.flags.user = accounts[name].flags.user;
-					if (globalOwners.indexOf(name)) {
-						ws.user.flags.user += CONST.IS_GLOBAL_OWNER;
-					}
+					ws.user.permissions.channel = accounts[name].flags.perm;
+					ws.user.permissions.global = accounts[name].flags.user;
 					ws.user.auth = true;
                     auth.name = ws.user.name;
 					ws.send(messageString('auth', auth));
 					broadcastOnline();
 					var filter: any = {hidden: false, banned: false};
-					if (ws.user.flags.perm & CONST.VIEW_HIDE) {
+					if (ws.user.permissions.check(CONST.VIEW_HIDE)) {
 						filter.hidden = undefined;
 					}
-					if (ws.user.flags.perm & CONST.VIEW_BAN) {
+					if (ws.user.permissions.check(CONST.VIEW_BAN)) {
 						filter.banned = undefined;
 					}
-					if (ws.user.flags.perm & CONST.IP_VIEW) {
+					if (ws.user.permissions.check(CONST.IP_VIEW)) {
 						var cursor = chatlog.collection(channel).find(filter, {}).stream({});
 					}
 					else {
@@ -421,8 +459,8 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 		ws.user.name = undefined;
 		ws.user.display = undefined;
 		ws.user.auth = false;
-		ws.user.flags.perm = 0;
-		ws.user.flags.user = 0;
+		ws.user.permissions.channel = 0;
+		ws.user.permissions.global = 0;
 		ws.send(messageString('unauth', unauth));
 	});
 
@@ -441,7 +479,7 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 		for (var i: number = 0; i < wss.clients.length; i++) {
 			client = wss.clients[i];
 			if (client.user.auth && (message.flags )) {
-				client.send(client.user.flags.perm & CONST.IP_VIEW || client.user.flags.perm & CONST.IS_OWNER || client.user.flags.user & CONST.IS_GLOBAL_OWNER ? messageWithIP : messageNormal);
+				client.send(client.user.permissions.check(CONST.IP_VIEW) ? messageWithIP : messageNormal);
 			}
 		}
 	});
@@ -452,13 +490,6 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 
 	//Event Listeners
 	wss.on('connection', function connection(ws: WebSocketClient) {
-		//Setup Vars
-		ws.user.auth = false;
-		ws.user.name = '';
-		ws.user.display = '';
-		ws.user.id = 0;
-		ws.user.flags.perm = 0;
-		ws.user.flags.user = 0;
 		ws.user.session = uuid.v4();
 
 		var version = {server: undefined, protocol: undefined};
