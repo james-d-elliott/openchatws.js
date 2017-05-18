@@ -24,7 +24,7 @@ import {ObjectID, MongoClient, MongoError, Db} from 'mongodb'
 
 //Local Modules used for Organization
 import * as CONST from './constants'
-import {IUser, IUserFlags, IAuth, IUnauth, IHide, IUnhide, ILogin, ILogout, IMessage, IMessageIncoming} from './interfaces'
+import {IAuth, IUnauth, IHide, IUnhide, ILogin, ILogout, IMessage, IMessageIncoming} from './interfaces'
 
 //JSON Files / Static Configs
 var accounts = require('./accounts');
@@ -64,7 +64,7 @@ class User {
 		this.id = undefined;
 		this.name = undefined;
 		this.display = undefined;
-		this.session = undefined;
+		this.session = uuid.v4();
 		this.auth = false;
 		this.permissions = new Permissions();
 		this.flags = 0;
@@ -129,7 +129,7 @@ function bitmaskArray(bitmask: number): number[] {
 	return bma;
 }
 
-function broadcastLine(line: string, authOnly?: boolean | undefined, modOnly?: boolean | undefined, adminOnly?: boolean | undefined, ownerOnly?: boolean | undefined) {
+function broadcastLine(line: string, authOnly: boolean = false, modOnly: boolean = false, adminOnly: boolean = false, ownerOnly: boolean = false) {
 		if (authOnly) {
 			for (var i = 0; i < wss.clients.length; i++) {
 				if (wss.clients[i].user.auth) {
@@ -143,17 +143,21 @@ function broadcastLine(line: string, authOnly?: boolean | undefined, modOnly?: b
 			}
 		}
 }
-
-function broadcastObj(type: string, object: any, authOnly?: boolean | undefined, modOnly?: boolean | undefined, adminOnly?: boolean | undefined, ownerOnly?: boolean | undefined): void {
+function broadcastObj(type: string, object: any, authOnly: boolean = false, modOnly: boolean = false, adminOnly: boolean = false, ownerOnly: boolean = false): void {
+//function broadcastObj(type: string, object: any, authOnly?: boolean | undefined, modOnly?: boolean | undefined, adminOnly?: boolean | undefined, ownerOnly?: boolean | undefined): void {
 	broadcastLine(messageString(type, object), authOnly, modOnly, adminOnly, ownerOnly)
 }
 
-function broadcastItem(item: any, authOnly?: boolean | undefined, modOnly?: boolean | undefined, adminOnly?: boolean | undefined, ownerOnly?: boolean | undefined): void {
+function broadcastItem(item: any, authOnly: boolean = false, modOnly: boolean = false, adminOnly: boolean = false, ownerOnly: boolean = false): void {
 	broadcastLine(JSON.stringify(item), authOnly, modOnly, adminOnly, ownerOnly);
 }
 
 function broadcastOnline(): void {
-
+	var online: any = {total: 0, anonymous: 0, authenticated: 0};
+	online.anonymous = wss.clients.filter(function(client) { return !client.user.auth });
+	online.authenticated = wss.clients.filter(function(client) { return client.user.auth });
+	online.total = online.anonymous + online.authenticated;
+	broadcastObj('online', online);
 }
 
 function replyDeny(ws: WebSocketClient, code: number, message?: string | undefined): void {
@@ -165,7 +169,10 @@ function replyDeny(ws: WebSocketClient, code: number, message?: string | undefin
 }
 
 function replyVersion(ws: WebSocketClient): void {
-
+	var version = {server: undefined, protocol: undefined};
+	version.server = process.env.npm_package_version;
+	version.protocol = process.env.npm_package_protocol;
+	ws.send(messageString('version', version));
 }
 
 /**********************
@@ -402,7 +409,7 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 		var name = login.name.toLowerCase();
 		var auth: IAuth = {name: undefined};
 		var test = login.test;
-		
+
 		console.log('in login');
 		if (!ws.user.auth && name in accounts && user.password) {
 			bcrypt.compare(user.password, accounts[name].password, function(err: Error, valid: boolean) {
@@ -490,12 +497,7 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 
 	//Event Listeners
 	wss.on('connection', function connection(ws: WebSocketClient) {
-		ws.user.session = uuid.v4();
-
-		var version = {server: undefined, protocol: undefined};
-		version.server = process.env.npm_package_version;
-		version.protocol = process.env.npm_package_protocol;
-		ws.send(messageString('version', version));
+		replyVersion(ws);
 		broadcastOnline();
 
 		ws.on('close', function close(code: number, message: string) {
