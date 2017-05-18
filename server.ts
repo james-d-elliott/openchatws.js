@@ -409,16 +409,11 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 		var name = login.name.toLowerCase();
 		var auth: IAuth = {name: undefined};
 		var test = login.test;
-
-		console.log('in login');
-		if (!ws.user.auth && name in accounts && user.password) {
-			bcrypt.compare(user.password, accounts[name].password, function(err: Error, valid: boolean) {
-				var i = bcrypt.hashSync(user.password, 10);
-				console.log(i);
+		if (!ws.user.auth && name in accounts && login.password) {
+			bcrypt.compare(login.password, accounts[name].password, function(err: Error, valid: boolean) {
 				if (valid) {
-					console.log('valid');
 					ws.user.name = name;
-					ws.user.display = user.name;
+					ws.user.display = login.name;
 					ws.user.permissions.channel = accounts[name].flags.perm;
 					ws.user.permissions.global = accounts[name].flags.user;
 					ws.user.auth = true;
@@ -444,14 +439,12 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 				}
 				else {
 					//ws.send('["deny",{"code":' + DENY_USER_NOT_EXIST + '}]');
-					console.log('bad un pw');
 					replyDeny(ws, CONST.DENY_USER_NOT_EXIST);
 				}
 			});
 		}
 		else {
 			//ws.send('["deny",{"code":' + DENY_USER_OR_PASS_WRONG + '}]');
-			console.log('bad un');
 			replyDeny(ws, CONST.DENY_USER_OR_PASS_WRONG);
 		}
 	});
