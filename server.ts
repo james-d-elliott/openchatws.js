@@ -490,6 +490,7 @@ MongoClient.connect(config.database, function(err: MongoError, chatlog: Db) {
 
 	//Event Listeners
 	wss.on('connection', function connection(ws: WebSocketClient) {
+		ws.user = new User();
 		replyVersion(ws);
 		broadcastOnline();
 
