@@ -1,12 +1,14 @@
 {
 	"james": {
-		"password": "$2a$10$pgOmJNdNlE9RHyCFttPR.eLQXKKgIP7M9Li8IIAriRDr5kJzuwizO",
+		"id": 1,
+		"password": "$2a$10$P.fCLimVPy33560e4qekyexjWFWO4ufDWv/PI.ydwWEC1PRsGWmt2",
 		"flags": {
 			"perm": 1,
 			"user": 0
 		}
 	},
 	"brendon": {
+		"id": 2,
 		"password": "$2a$10$pgOmJNdNlE9RHyCFttPR.eLQXKKgIP7M9Li8IIAriRDr5kJzuwizO",
 		"flags": {
 			"perm": 0,
@@ -14,6 +16,7 @@
 		}
 	},
 	"lumeh": {
+		"id": 3,
 		"password": "$2a$10$pgOmJNdNlE9RHyCFttPR.eLQXKKgIP7M9Li8IIAriRDr5kJzuwizO",
 		"flags": {
 			"perm": 0,

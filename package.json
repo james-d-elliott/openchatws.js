@@ -1,13 +1,25 @@
 {
-  "name": "openchatws",
+  "name": "openchatws.js",
   "version": "0.1.1",
-  "protocol": 1,
-  "description": "example",
+  "description": "Open Source NodeJS Websocket Chat Server",
   "main": "server.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/james-d-elliott/openchatws.js.git"
   },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "npm run build:live",
+    "build:live": "nodemon --exec .\\node_modules\\.bin\\ts-node -- .\\server.ts"
+  },
+  "keywords": [
+    "chat",
+    "ws",
+    "server",
+    "websocket"
+  ],
+  "author": "James Elliott",
+  "license": "GPL-3.0",
   "dependencies": {
     "bcrypt": "^0.8.5",
     "http": "^0.0.0",
@@ -16,11 +28,14 @@
     "uuid": "^2.0.1",
     "ws": "^0.8.1"
   },
-  "devDependencies": {},
-  "scripts": {
-    "test": "node test.js",
-    "start": "node server.js"
-  },
-  "author": "James Elliott",
-  "license": "GPL-3.0"
+  "devDependencies": {
+    "@types/node": "^7.0.18",
+    "@types/bcrypt": "^1.0.0",
+    "@types/mongodb": "^2.2.2",
+    "@types/node-uuid": "0.0.28",
+    "@types/ws": "0.0.41",
+    "nodemon": "^1.11.0",
+    "ts-node": "^3.0.4",
+    "typescript": "^2.3.2"
+  }
 }
